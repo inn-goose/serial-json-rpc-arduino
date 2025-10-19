@@ -1,15 +1,16 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import json
-import serial
 import time
 
+import serial
 
-class JsonRpcClientError(Exception):
+
+class SerialJsonRpcClientError(Exception):
     pass
 
 
-class JsonRpcClient:
+class SerialJsonRpcClient:
     """
     https://pyserial.readthedocs.io/en/latest/pyserial.html
     """
@@ -39,7 +40,7 @@ class JsonRpcClient:
             self.serial = serial.Serial(
                 port=self.port, baudrate=self.baudrate, timeout=self.read_timeout, write_timeout=self.write_timeout)
         except Exception as ex:
-            raise JsonRpcClientError(
+            raise SerialJsonRpcClientError(
                 f"failed to open serial port with {str(ex)}")
 
         # init: read welcome message
@@ -50,28 +51,29 @@ class JsonRpcClient:
         # can be None
         return response
 
-    def send_request(self, method: str, params: Optional[Dict[str, Any]]) -> str:
+    def send_request(self, method: str, params: Optional[List[Any]]) -> str:
         if self.serial is None:
-            raise JsonRpcClientError("uninitialized serial protocol")
+            raise SerialJsonRpcClientError("uninitialized serial protocol")
 
         request = self._build_request(method, params)
 
         # send request and read the amount of written bytes
         w_res = self.serial.write((json.dumps(request) + '\n').encode())
         if not w_res:
-            raise JsonRpcClientError("failed to send request, 0 bytes written")
+            raise SerialJsonRpcClientError(
+                "failed to send request, 0 bytes written")
 
         # flush the data to the board
         self.serial.flush()
 
         response, resp_wait_sec = self._read_response(self.init_timeout)
         if response is None:
-            raise JsonRpcClientError(
+            raise SerialJsonRpcClientError(
                 f"failed to read response for {method}, resp_wait_sec = {resp_wait_sec}")
 
         return response
 
-    def _build_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _build_request(self, method: str, params: Optional[List[Any]] = None) -> Dict[str, Any]:
         request = {
             "jsonrpc": self.JSON_RPC_VERSION,
             "id": self.json_rpc_request_id,
@@ -84,7 +86,7 @@ class JsonRpcClient:
 
     def _read_response(self, read_timeout_sec: float) -> Tuple[Optional[str], float]:
         if self.serial is None:
-            raise JsonRpcClientError("uninitialized serial protocol")
+            raise SerialJsonRpcClientError("uninitialized serial protocol")
 
         start_ts = time.time()
         deadline_ts = start_ts + read_timeout_sec
@@ -113,15 +115,15 @@ class JsonRpcClient:
 
         jsonrpc = response.get("jsonrpc", None)
         if jsonrpc != self.JSON_RPC_VERSION:
-            raise JsonRpcClientError(
+            raise SerialJsonRpcClientError(
                 f"parse error: invalid `jsonrpc` = {jsonrpc}")
 
         error = response.get("error", None)
         if error:
-            raise JsonRpcClientError(f"error response: {error}")
+            raise SerialJsonRpcClientError(f"error response: {error}")
 
         result = response.get("result", None)
         if result is None:
-            raise JsonRpcClientError(f"parse error: missing `result`")
+            raise SerialJsonRpcClientError(f"parse error: missing `result`")
 
         return result
