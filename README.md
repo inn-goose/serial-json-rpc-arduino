@@ -2,7 +2,7 @@
 
 ## TLDR
 
-The basic serial protocol between a computer and an Arduino board is often insufficient for board control and/or complex data exchange. Implementing primitive command handlers on top of the basic serial protocol is also inconvenient, so this project implements the existing [JSON-RPC protocol]((https://www.jsonrpc.org/specification)) to perform remote command execution on Arduino.
+The basic serial protocol between a computer and an Arduino board is often insufficient for board control and/or complex data exchange. Implementing primitive command handlers on top of the basic serial protocol is also inconvenient, so this project implements the existing [JSON-RPC protocol](https://www.jsonrpc.org/specification) to perform remote command execution on Arduino.
 
 This is a template, not a ready-to-use library. You can use it as a foundation to build both the Arduino side and the client side. To do so, define the set of operations for both the board and the client, specify the parameters on the client side, and implement the corresponding operation handlers on the board side.
 
@@ -28,30 +28,30 @@ Board side uses the [ArduinoJson 7](https://arduinojson.org/)
 
 > Note: use C++ `array` for `params` due to Arduino's limitations with `HashMap`
 
-### `SerialJsonRpcServer` class
+### `SerialJsonRpcBoard` class
 
-check the `board.ino` for the actual usecase
+Check the `board.ino` for the actual usecase
 
 ```
 #import "serial_json_rpc.h"
 
-// define the server
-static SerialJsonRpcServer rpc_server(rpc_processor);
+// define the board
+static SerialJsonRpcBoard rpc_board(rpc_processor);
 
 // define a callback to execute the RPC
 void rpc_processor(int request_id, const String &method, const String params[], int params_size) {
     ...
 
     // send result
-    rpc_server.send_result(0, "Success");
+    rpc_board.send_result(0, "Success");
 
     // send errro
-    rpc_server.send_error(0, -1, "Error Title", "Error Details");
+    rpc_board.send_error(0, -1, "Error Title", "Error Details");
 }
 
 // read the data from the Serial
 void loop() {
-  rpc_server.loop();
+  rpc_board.loop();
 }
 ```
 
@@ -81,7 +81,7 @@ from serial_json_rpc import client
 # prefer singleton
 json_rpc_client = client.SerialJsonRpcClient(...)
 
-# run once, it restarts the borad
+# run once, it restarts the board
 json_rpc_client.init()
 
 # send RPC request
@@ -104,7 +104,7 @@ deactivate
 
 ### usage
 
-> note, that arduino restarts on every serial session: [discussion](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915), so it require `~2 sec` to init before processing requests. use `--init-timeout` to configure
+> Note: arduino restarts on every serial session: [discussion](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915), so it require `~2 sec` to init before processing requests. use `--init-timeout` to configure
 
 ```
 python -m serial.tools.list_ports

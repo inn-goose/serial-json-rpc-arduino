@@ -1,13 +1,13 @@
 #include <ArduinoJson.h>
 
 
-class SerialJsonRpcServer {
+class SerialJsonRpcBoard {
 
   // request_id, method, params[], params_size
   using RpcProcessor = void (*)(int, const String&, const String[], int);
 
 public:
-  SerialJsonRpcServer(RpcProcessor rpc_processor)
+  SerialJsonRpcBoard(RpcProcessor rpc_processor)
     : rpc_processor_callback(rpc_processor) {
     serial_read_buffer_pos = 0;
   }
