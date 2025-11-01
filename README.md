@@ -32,8 +32,10 @@ Board side uses the [ArduinoJson 7](https://arduinojson.org/)
 
 Check the `board.ino` for the actual usecase
 
-```
+```cpp
 #import "serial_json_rpc.h"
+
+using namespace SerialJsonRpcLibrary;
 
 // define the board
 static SerialJsonRpcBoard rpc_board(rpc_processor);
@@ -43,7 +45,7 @@ void rpc_processor(int request_id, const String &method, const String params[], 
     ...
 
     // send result
-    rpc_board.send_result(0, "Success");
+    rpc_board.send_result_string(0, "Success");
 
     // send errro
     rpc_board.send_error(0, -1, "Error Title", "Error Details");
@@ -58,7 +60,7 @@ void loop() {
 ### usage
 
 Serial Monitor test / `115200` baud
-```
+```json
 {"jsonrpc":"2.0","id":0,"method": "set_builtin_led", "params": [1]}
 
 {"jsonrpc":"2.0","id":0,"method": "set_builtin_led", "params": [0]}
@@ -75,7 +77,7 @@ Client side uses the [pySerial library](https://pyserial.readthedocs.io/en/lates
 
 check the `cli.py` for the actual usecase
 
-```
+```py
 from serial_json_rpc import client
 
 # prefer singleton
@@ -90,7 +92,7 @@ result = json_rpc_client.send_request("set_builtin_led", [0])
 
 ### init
 
-```
+```bash
 pip3 install virtualenv
 
 PATH=${PATH}:~/Library/Python/3.9/bin/ ./env/init.sh
@@ -104,7 +106,7 @@ deactivate
 
 > Note: arduino restarts on every serial session: [discussion](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915), so it require `~2 sec` to init before processing requests. use `--init-timeout` to configure
 
-```
+```bash
 source venv/bin/activate
 
 python -m serial.tools.list_ports
