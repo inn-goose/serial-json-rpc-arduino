@@ -93,9 +93,7 @@ result = json_rpc_client.send_request("set_builtin_led", [0])
 ```
 pip3 install virtualenv
 
-cd py-cli/
-
-PATH=${PATH}:~/Library/Python/3.9/bin/ ./sh/init.sh
+PATH=${PATH}:~/Library/Python/3.9/bin/ ./env/init.sh
 
 source venv/bin/activate
 
@@ -107,9 +105,11 @@ deactivate
 > Note: arduino restarts on every serial session: [discussion](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915), so it require `~2 sec` to init before processing requests. use `--init-timeout` to configure
 
 ```
+source venv/bin/activate
+
 python -m serial.tools.list_ports
 
-PYTHONPATH=./:$PYTHONPATH python3 ./cli.py /dev/cu.usbmodem101 led_on
+PYTHONPATH=./:$PYTHONPATH python3 ./py-cli/cli.py /dev/cu.usbmodem2101 led_on
 
-PYTHONPATH=./:$PYTHONPATH python3 ./cli.py /dev/cu.usbmodem101 led_off
+PYTHONPATH=./:$PYTHONPATH python3 ./py-cli/cli.py /dev/cu.usbmodem2101 led_off
 ```

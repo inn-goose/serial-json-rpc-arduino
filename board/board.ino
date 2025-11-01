@@ -1,5 +1,7 @@
 #import "serial_json_rpc.h"
 
+using namespace SerialJsonRpcLibrary;
+
 
 static const unsigned long SERIAL_BAUD = 115200;
 
@@ -19,7 +21,7 @@ void rpc_processor(int request_id, const String &method, const String params[], 
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, status ? HIGH : LOW);
 
-    rpc_board.send_result(request_id, status ? "OK: builtin LED is ON" : "OK: builtin LED is OFF");
+    rpc_board.send_result_string(request_id, status ? "OK: builtin LED is ON" : "OK: builtin LED is OFF");
 
   } else {
     rpc_board.send_error(request_id, -32601, "Method not found", method.c_str());
