@@ -8,7 +8,7 @@ This is a template, not a ready-to-use library. You can use it as a foundation t
 
 The example implementation provided here allows turning the built-in LED on and off on the board.
 
-A better example of using this template is the [`eeprom-api-arduino`](https://github.com/inn-goose/eeprom-api-arduino) project.
+A better example of using this template is the [`EEPROM Programmer`](https://github.com/inn-goose/eeprom-programmer) project.
 
 
 ## Serial Connection and Board Reset
