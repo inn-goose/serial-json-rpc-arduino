@@ -1,6 +1,25 @@
+#ifndef __serial_json_rpc_lib_h__
+#define __serial_json_rpc_lib_h__
+
+#include <limits.h>
 #include <ArduinoJson.h>
 
 namespace SerialJsonRpcLibrary {
+
+enum JsonRpcErrorCode : short {
+  SUCCESS = 0,
+  // https://www.jsonrpc.org/specification#error_object
+  PARSE_ERROR = -32700,
+  INVALID_REQUEST = -32600,
+  METHOD_NOT_FOUND = -32601,
+  INVALID_PARAMS = -32602,
+  INTERNAL_ERROR = -32603,
+  // server error range: -32000 to -32099
+  SERVER_ERROR = -32000,
+  // unknown
+  UNKNOWN_ERROR = SHRT_MAX
+};
+
 
 class SerialJsonRpcBoard {
 
@@ -14,11 +33,12 @@ public:
   void loop();
 
   void send_result_string(int id, const char* string);
-  void send_result_bytes(int id, uint8_t* buffer, int buffer_size);
+  void send_result_bytes(int id, uint8_t* buffer, size_t buffer_size);
+  void send_result_longs(int id, long* buffer, size_t buffer_size);
   void send_error(int id, int error_code, const char* error_message, const char* error_data);
 
   // helpers
-  static void json_array_to_byte_array(const String& raw_json, uint8_t* byte_array, int array_size);
+  static size_t json_array_to_byte_array(const String& raw_json, uint8_t* byte_array, size_t array_size);
 
 private:
   // default baudrate
@@ -34,7 +54,7 @@ private:
   void _process_request(JsonDocument& request);
 
   DynamicJsonDocument _get_response(int id, int data_size);
-  void _send_response(const DynamicJsonDocument &response);
+  void _send_response(DynamicJsonDocument &response);
 
   int baudrate;
 
@@ -61,7 +81,7 @@ void SerialJsonRpcBoard::loop() {
       DeserializationError deserialization_error = deserializeJson(request, serial_read_buffer, serial_read_buffer_pos);
       if (deserialization_error) {
         const char* error_data = deserialization_error.c_str();
-        send_error(0, -32700, "Parse error", error_data);
+        send_error(0, JsonRpcErrorCode::PARSE_ERROR, "Parse error", error_data);
       } else {
         _process_request(request);
       }
@@ -73,7 +93,7 @@ void SerialJsonRpcBoard::loop() {
 
     // buffer overflow
     if (serial_read_buffer_pos >= _JSON_RPC_BUFFER_SIZE) {
-      send_error(0, -32600, "Invalid Request", "JSON RPC message is to large");
+      send_error(0, JsonRpcErrorCode::INVALID_REQUEST, "Invalid Request", "JSON RPC message is to large");
       serial_read_buffer_pos = 0;
       return;
     }
@@ -97,7 +117,7 @@ void SerialJsonRpcBoard::send_result_string(int id, const char* string) {
   _send_response(response);
 }
 
-void SerialJsonRpcBoard::send_result_bytes(int id, uint8_t* buffer, int buffer_size) {
+void SerialJsonRpcBoard::send_result_bytes(int id, uint8_t* buffer, size_t buffer_size) {
   // >"result":< == 9
   // max byte = 255 + comma separator + space == 4
   // array braces = [] == 2
@@ -114,13 +134,34 @@ void SerialJsonRpcBoard::send_result_bytes(int id, uint8_t* buffer, int buffer_s
   _send_response(response);
 }
 
-static void SerialJsonRpcBoard::json_array_to_byte_array(const String& raw_json, uint8_t* byte_array, int array_size) {
+void SerialJsonRpcBoard::send_result_longs(int id, long* buffer, size_t buffer_size) {
+  // >"result":< == 9
+  // max byte = minus + 10 digits + comma separator + space == 13
+  // array braces = [] == 2
+  int data_size = 9 + 2 + 13 * buffer_size;
+  DynamicJsonDocument response = _get_response(id, data_size);
+
+  DynamicJsonDocument result(data_size);
+  JsonArray arr = result.to<JsonArray>();
+  for (int i = 0; i < buffer_size; i ++) {
+    arr.add(buffer[i]);
+  }
+  response["result"] = result;
+
+  _send_response(response);
+}
+
+size_t SerialJsonRpcBoard::json_array_to_byte_array(const String& raw_json, uint8_t* byte_array, size_t array_size) {
   DynamicJsonDocument json_doc(raw_json.length());
   deserializeJson(json_doc, raw_json);
   JsonArray json_array = json_doc.as<JsonArray>();
-  for (int i = 0; i < array_size; i++) {
+  if (json_array.size() > array_size) {
+    return -1;
+  }
+  for (size_t i = 0; i < json_array.size(); i++) {
     byte_array[i] = json_array[i].as<uint8_t>();
   }
+  return json_array.size();
 }
 
 void SerialJsonRpcBoard::send_error(int id, int error_code, const char* error_message, const char* error_data) {
@@ -151,7 +192,7 @@ void SerialJsonRpcBoard::send_error(int id, int error_code, const char* error_me
 void SerialJsonRpcBoard::_process_request(JsonDocument& request) {
   // validata JSON RPC format
   if (!request.containsKey("jsonrpc") || strcmp(request["jsonrpc"], "2.0") != 0) {
-    send_error(0, -32600, "Invalid Request", "Invalid protocol version");
+    send_error(0, JsonRpcErrorCode::INVALID_REQUEST, "Invalid Request", "Invalid protocol version");
     return;
   }
 
@@ -161,14 +202,14 @@ void SerialJsonRpcBoard::_process_request(JsonDocument& request) {
   JsonVariant params = request["params"];
 
   if (!params.is<JsonArray>()) {
-    send_error(request_id, -32602, "Invalid params", "Array expected");
+    send_error(request_id, JsonRpcErrorCode::INVALID_PARAMS, "Invalid params", "Array expected");
     return;
   }
 
   // convert JsonArray to const String[]
   JsonArray params_json_array = params.as<JsonArray>();
   const size_t params_size = params_json_array.size();
-  const String params_array[params_size];
+  String params_array[params_size];
   for (size_t i = 0; i < params_size; i++) {
     params_array[i] = params_json_array[i].as<String>();
   }
@@ -188,7 +229,7 @@ DynamicJsonDocument SerialJsonRpcBoard::_get_response(int id, int data_size) {
   return response;
 }
 
-void SerialJsonRpcBoard::_send_response(const DynamicJsonDocument &response) {
+void SerialJsonRpcBoard::_send_response(DynamicJsonDocument &response) {
   serializeJson(response, Serial);
   response.clear();
   response.garbageCollect();
@@ -198,3 +239,5 @@ void SerialJsonRpcBoard::_send_response(const DynamicJsonDocument &response) {
 }
 
 }
+
+#endif  // !__serial_json_rpc_lib_h__
