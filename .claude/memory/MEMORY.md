@@ -1,0 +1,2 @@
+- [Project context](project_context.md) — backported from eeprom-programmer, bottlenecks, improvement ideas
+- [Debuggability priority](user_debuggability.md) — JSON-RPC chosen for Serial Monitor testing, never replace with binary-only
