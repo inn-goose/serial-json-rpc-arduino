@@ -156,7 +156,7 @@ size_t SerialJsonRpcBoard::json_array_to_byte_array(const String& raw_json, uint
   deserializeJson(json_doc, raw_json);
   JsonArray json_array = json_doc.as<JsonArray>();
   if (json_array.size() > array_size) {
-    return -1;
+    return 0;
   }
   for (size_t i = 0; i < json_array.size(); i++) {
     byte_array[i] = json_array[i].as<uint8_t>();

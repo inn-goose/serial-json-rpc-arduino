@@ -1,117 +1,144 @@
-# Serial JSON RPC for Arduino
+# Serial JSON-RPC for Arduino
 
-## TLDR
+A minimal [JSON-RPC 2.0](https://www.jsonrpc.org/specification) implementation for computer-to-Arduino communication over Serial. It hides all encoding/decoding and serial-transfer details, allowing you to focus on defining RPC methods and their handlers.
 
-The basic serial protocol between a computer and an Arduino board is often insufficient for board control and/or complex data exchange. Implementing primitive command handlers on top of the basic serial protocol is also inconvenient, so this project implements the existing [JSON-RPC protocol](https://www.jsonrpc.org/specification) to perform remote command execution on Arduino.
+This is a **template**, not a library. Fork or copy it into your project and extend both sides with your own methods. The included example controls the built-in LED.
 
-This is a template, not a ready-to-use library. You can use it as a foundation to build both the Arduino side and the client side. To do so, define the set of operations for both the board and the client, specify the parameters on the client side, and implement the corresponding operation handlers on the board side.
+> Blog post: [Project: Serial JSON-RPC for Arduino](https://goose.sh/blog/serial-json-rpc/)
 
-The example implementation provided here allows turning the built-in LED on and off on the board.
+## Why JSON-RPC over Serial?
 
-A better example of using this template is the [`EEPROM Programmer`](https://github.com/inn-goose/eeprom-programmer) project.
+Working with the raw Serial protocol quickly introduces ambiguity: unclear field boundaries, no standard error reporting, and ad-hoc message formats that don't scale across projects. JSON-RPC solves this with a well-defined request/response structure, named methods, typed parameters, and built-in error codes.
 
+The key advantage is **debuggability**: you can paste raw JSON directly into Arduino's Serial Monitor and get structured responses back, with no client tooling required. This makes hardware bringup and iterative development significantly faster.
 
-## Serial Connection and Board Reset
-
-Note that each time a serial connection is established, the Arduino board performs a full reset. [Details](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915).
-
-This has two inconvenient consequences:
-(a) after each connection, you must wait about 2 seconds (on the UNO R3), and
-(b) the microcontroller’s internal state is lost between sessions.
-
-In practice, this means that the provided example does not simply turn the LED on and off, but **resets** → **turns on** → **resets again** → **turns off** in case of the "on → off" cycle. During each reset, the LED enters an undefined state (in my case, it glows dimly).
-
-
-## Board
-
-Board side uses the [ArduinoJson 7](https://arduinojson.org/)
-
-> Note: use C++ `array` for `params` due to Arduino's limitations with `HashMap`
-
-### `SerialJsonRpcBoard` class
-
-Check the `board.ino` for the actual usecase
-
-```cpp
-#import "serial_json_rpc.h"
-
-using namespace SerialJsonRpcLibrary;
-
-// define the board
-static SerialJsonRpcBoard rpc_board(rpc_processor);
-
-// define a callback to execute the RPC
-void rpc_processor(int request_id, const String &method, const String params[], int params_size) {
-    ...
-
-    // send result
-    rpc_board.send_result_string(0, "Success");
-
-    // send errro
-    rpc_board.send_error(0, -1, "Error Title", "Error Details");
-}
-
-// read the data from the Serial
-void loop() {
-  rpc_board.loop();
-}
+```
+Serial Monitor (115200 baud) >  {"jsonrpc":"2.0","id":0,"method":"set_builtin_led","params":[1]}
+                             <  {"jsonrpc":"2.0","id":0,"result":"OK: builtin LED is ON"}
 ```
 
-### usage
+## Architecture
 
-Serial Monitor test / `115200` baud
-```json
-{"jsonrpc":"2.0","id":0,"method": "set_builtin_led", "params": [1]}
-
-{"jsonrpc":"2.0","id":0,"method": "set_builtin_led", "params": [0]}
+```
++-----------------+          Serial / 115200 baud          +-------------------+
+|  Python Client  |  <--- newline-delimited JSON-RPC --->  |  Arduino Board    |
+|  (py-cli/)      |                                        |  (board/)         |
++-----------------+                                        +-------------------+
 ```
 
+**Board** (`board/`) -- Arduino sketch + header-only C++ library
 
-## Client
+| File | Role |
+|------|------|
+| `serial_json_rpc.h` | `SerialJsonRpcBoard` class. Serial buffering, JSON-RPC parsing, response serialization. Header-only, all implementation inline. |
+| `board.ino` | Example sketch. Defines an `rpc_processor` callback that dispatches on method name. |
 
-Client side uses the [pySerial library](https://pyserial.readthedocs.io/en/latest/pyserial.html)
+**Client** (`py-cli/`) -- Python CLI over pySerial
 
-> Note: use python `List` for `params` due to Arduino's limitations with `HashMap`
+| File | Role |
+|------|------|
+| `serial_json_rpc/client.py` | `SerialJsonRpcClient` class. Serial connection management, request ID auto-increment, JSON encoding/decoding with timeout-based polling. |
+| `cli.py` | CLI entry point. Maps high-level commands (`led_on`, `led_off`) to RPC method calls. |
 
-### `SerialJsonRpcClient` class
+## Real-World Usage
 
-check the `cli.py` for the actual usecase
+This template was extracted from the [EEPROM Programmer](https://github.com/inn-goose/eeprom-programmer) project, where it drives all communication between a Python CLI and an Arduino MEGA/DUE for reading and writing AT28Cxx EEPROM chips.
 
-```py
-from serial_json_rpc import client
+In that project, the JSON-RPC layer handles 7 methods (`init_chip`, `read_page`, `write_page`, etc.) using all three board-side response types -- strings for status messages, byte arrays for memory dumps, and long arrays for performance counters. The Python client wraps `SerialJsonRpcClient` in a domain-specific class that manages pagination, chip initialization, and bulk data transfer across 512+ pages.
 
-# prefer singleton
-json_rpc_client = client.SerialJsonRpcClient(...)
+The recommended pattern for performance-sensitive applications: keep JSON-RPC for control commands (debuggable, human-readable) and add an optional binary fast-path only for bulk data transfer.
 
-# run once, it restarts the board
-json_rpc_client.init()
+## Getting Started
 
-# send RPC request
-result = json_rpc_client.send_request("set_builtin_led", [0])
-```
+### Requirements
 
-### init
+- Arduino board (tested on UNO R3, MEGA, DUE)
+- [ArduinoJson](https://arduinojson.org/) library
+- Python 3 with `pyserial`
+
+### Board
+
+Open `board/board.ino` in the Arduino IDE, install the ArduinoJson library, and upload to your board.
+
+### Client
 
 ```bash
 pip3 install virtualenv
 
+# get python version, use X.Y part below
+python3 --version
+
 PATH=${PATH}:~/Library/Python/3.9/bin/ ./env/init.sh
-
 source venv/bin/activate
-
-deactivate
 ```
 
-### usage
-
-> Note: arduino restarts on every serial session: [discussion](https://forum.arduino.cc/t/arduino-auto-resets-after-opening-serial-monitor/850915), so it require `~2 sec` to init before processing requests. use `--init-timeout` to configure
+### Run
 
 ```bash
-source venv/bin/activate
+# find your serial port
+python3 -m serial.tools.list_ports
 
-python -m serial.tools.list_ports
-
+# turn LED on
 PYTHONPATH=./:$PYTHONPATH python3 ./py-cli/cli.py /dev/cu.usbmodem2101 led_on
 
+# turn LED off
 PYTHONPATH=./:$PYTHONPATH python3 ./py-cli/cli.py /dev/cu.usbmodem2101 led_off
 ```
+
+## Adding New Methods
+
+**1. Board side** -- add a branch in `rpc_processor()` in `board.ino`:
+
+```cpp
+void rpc_processor(int request_id, const String &method, const String params[], int params_size) {
+  if (method == "my_method") {
+    // validate params
+    if (params_size != 1) {
+      rpc_board.send_error(request_id, -32602, "Invalid params", "expected 1 param");
+      return;
+    }
+
+    // do work...
+
+    // respond with one of three result types:
+    rpc_board.send_result_string(request_id, "done");
+    // rpc_board.send_result_bytes(request_id, buffer, size);
+    // rpc_board.send_result_longs(request_id, buffer, size);
+
+  } else {
+    rpc_board.send_error(request_id, -32601, "Method not found", method.c_str());
+  }
+}
+```
+
+**2. Client side** -- add a `Method` enum value in `cli.py` and map it in `execute_method()`:
+
+```python
+class Method(Enum):
+    MY_METHOD = "my_method"
+
+def execute_method(json_rpc_client, method):
+    if method == Method.MY_METHOD:
+        return json_rpc_client.send_request("my_method", ["arg1"])
+```
+
+**3. Test via Serial Monitor** -- paste into the monitor at 115200 baud:
+
+```json
+{"jsonrpc":"2.0","id":0,"method":"my_method","params":["arg1"]}
+```
+
+Parameters are always positional arrays, not named objects, on both sides.
+
+## Constraints
+
+| Constraint | Detail |
+|-----------|--------|
+| **Buffer limit** | 350 bytes (`_JSON_RPC_BUFFER_SIZE`). Hard ceiling for UNO R3's ~2 KB RAM. Messages exceeding this are rejected. |
+| **Positional params** | `String[]` arrays only -- no named JSON objects. Saves RAM by avoiding HashMap overhead. |
+| **Three result types** | `send_result_string()`, `send_result_bytes()`, `send_result_longs()`. Other types require manual serialization. |
+| **Auto-reset** | Arduino resets on every serial connection open, requiring ~2-3 sec init timeout. Board state is lost between sessions. |
+
+## License
+
+MIT

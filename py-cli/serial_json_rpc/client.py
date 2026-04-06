@@ -58,7 +58,7 @@ class SerialJsonRpcClient:
         request = self._build_request(method, params)
 
         # send request and read the amount of written bytes
-        w_res = self.serial.write((json.dumps(request) + '\n').encode())
+        w_res = self.serial.write((json.dumps(request, separators=(',', ':')) + '\n').encode())
         if not w_res:
             raise SerialJsonRpcClientError(
                 "failed to send request, 0 bytes written")
@@ -66,7 +66,7 @@ class SerialJsonRpcClient:
         # flush the data to the board
         self.serial.flush()
 
-        response, resp_wait_sec = self._read_response(self.init_timeout)
+        response, resp_wait_sec = self._read_response(self.RESPONSE_READ_TIMEOUT_SEC)
         if response is None:
             raise SerialJsonRpcClientError(
                 f"failed to read response for {method}, resp_wait_sec = {resp_wait_sec}")
@@ -81,6 +81,8 @@ class SerialJsonRpcClient:
         }
         if params:
             request["params"] = params
+        else:
+            request["params"] = []
         self.json_rpc_request_id += 1
         return request
 

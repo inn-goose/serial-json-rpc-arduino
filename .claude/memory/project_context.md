@@ -1,6 +1,6 @@
 ---
-name: Project context and bottlenecks
-description: Why this project exists, its relationship to eeprom-programmer, performance bottlenecks, and design rationale for JSON-RPC
+name: Project context and backport status
+description: Relationship to eeprom-programmer, backport history, and improvement ideas
 type: project
 ---
 
@@ -10,16 +10,10 @@ This template was backported from the EEPROM Programmer project (../eeprom-progr
 
 **How to apply:** Any proposed changes must preserve Serial Monitor testability. Performance optimizations (binary protocol, reduced polling) should be additive/opt-in, not replace the JSON-RPC path.
 
-Key bottlenecks identified from eeprom-programmer profiling:
-- ArduinoJson serialization is 62% of per-page CPU time on MEGA
-- Python client 50ms polling sleep accumulates ~12s over 512 pages
-- JSON inflates 64 bytes to ~323 bytes on wire
-- Fully synchronous (no pipelining)
-- Projected 10-13x speedup with binary protocol for bulk transfers
+Backported from eeprom-programmer on 2026-04-06:
+1. Fix `json_array_to_byte_array()` return 0 instead of -1 (unsigned type bug)
+2. Compact JSON encoding with `separators=(',', ':')`
+3. Fix response timeout to use `RESPONSE_READ_TIMEOUT_SEC` instead of `init_timeout`
+4. Always include `"params": []` in requests (board rejects missing params key)
 
-Potential improvements discussed (2026-04-03):
-1. Reduce Python polling interval (low-hanging fruit)
-2. Add bulk transfer example (show send_result_bytes/longs usage)
-3. ArduinoJson v6/v7 compatibility (DynamicJsonDocument removed in v7)
-4. Optional binary fast-path alongside JSON-RPC (hybrid approach)
-5. Client-side wrapper pattern example (like EepromProgrammerClient)
+After this backport, the only remaining difference between template and eeprom-programmer vendored copies is the file name (`serial_json_rpc.h` vs `serial_json_rpc_lib.h`).

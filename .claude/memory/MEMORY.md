@@ -1,2 +1,3 @@
-- [Project context](project_context.md) — backported from eeprom-programmer, bottlenecks, improvement ideas
+- [Project context](project_context.md) — backported from eeprom-programmer, backport status, improvement ideas
 - [Debuggability priority](user_debuggability.md) — JSON-RPC chosen for Serial Monitor testing, never replace with binary-only
+- [User profile](user_profile.md) — Ilia (inn-goose), SWE at Meta, Arduino/hardware projects, values polished presentation
